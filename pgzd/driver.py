@@ -101,19 +101,35 @@ class PgzDriver:
         Returns a copy of the final rendered surface.
         """
         self._drain_events()
-        for _ in range(n):
+        for _ in range(max(0, n)):
             self._pgzclock.clock.tick(dt)
             if self._update_fn:
                 self._update_fn(dt)
-            self._draw_fn()
-            pygame.display.flip()
             self._frame += 1
-        self._capture()
+        self._render()
         return self._surf
+
+    def apply(self) -> pygame.Surface:
+        """Apply queued input immediately and refresh the frame, *without*
+        advancing game time.
+
+        Lets a standalone `mousemove` / `keydown` / `mousedown` take effect — its
+        handler fires and game state updates — so the next screenshot or state
+        read is current.  A held key stays held (its release isn't queued yet).
+        """
+        self._drain_events()
+        self._render()
+        return self._surf
+
+    def _render(self) -> None:
+        """Draw the current game state to the surface (no update tick)."""
+        self._draw_fn()
+        pygame.display.flip()
+        self._capture()
 
     def _drain_events(self) -> None:
         """Move queued events into pgzero: update keyboard/mouse state and fire
-        handlers.  Called once at the start of each step."""
+        handlers."""
         # Push our pending events through the real pygame queue so any code that
         # calls pygame.event.get() sees them too, then process identically to
         # pgzero's mainloop.
@@ -145,25 +161,26 @@ class PgzDriver:
         ))
 
     def tap(self, key: "int | str", dt: float = _DEFAULT_DT) -> pygame.Surface:
-        """Press and release a key around a single frame.
+        """Press and release a key within a single frame.
 
-        Enough to fire `on_key_down` handlers (menu start, snake turns).
+        Enough to fire `on_key_down` handlers (menu start, snake turns).  Both
+        events are drained in the same frame, so no key stays held afterward.
         """
         self.key_down(key)
-        surf = self.step(1, dt)
         self.key_up(key)
-        return surf
+        return self.step(1, dt)
 
     def hold(self, key: "int | str", frames: int,
              dt: float = _DEFAULT_DT) -> pygame.Surface:
         """Hold a key down for `frames` frames, then release it.
 
         Required for games that poll `keyboard.left` etc. for continuous motion.
+        The release is flushed (without advancing time) so state is clean after.
         """
         self.key_down(key)
-        surf = self.step(frames, dt)
+        self.step(frames, dt)
         self.key_up(key)
-        return surf
+        return self.step(0, dt)   # flush the release without advancing time
 
     # ── mouse input ───────────────────────────────────────────────────────────
 
@@ -186,9 +203,9 @@ class PgzDriver:
               dt: float = _DEFAULT_DT) -> pygame.Surface:
         self.mouse_move(x, y)
         self.mouse_down(x, y, button)
-        surf = self.step(1, dt)
+        self.step(1, dt)
         self.mouse_up(x, y, button)
-        return surf
+        return self.step(0, dt)   # flush the release without advancing time
 
     def drag(self, x1: int, y1: int, x2: int, y2: int, steps: int = 10,
              button: str = "left", dt: float = _DEFAULT_DT) -> pygame.Surface:

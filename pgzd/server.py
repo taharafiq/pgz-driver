@@ -46,25 +46,27 @@ class Server:
             d.step(int(args.get("n", 1)), float(args.get("dt", 1 / 60.0)))
             return self._frame_info()
 
-        # keyboard
+        # keyboard — raw key_down/key_up apply immediately (no time advance) so
+        # the press/release takes effect; tap/hold manage their own stepping.
         if cmd == "keydown":
-            d.key_down(args["key"]);  return self._frame_info()
+            d.key_down(args["key"]);  d.apply();  return self._frame_info()
         if cmd == "keyup":
-            d.key_up(args["key"]);    return self._frame_info()
+            d.key_up(args["key"]);    d.apply();  return self._frame_info()
         if cmd == "tap":
             d.tap(args["key"]);       return self._frame_info()
         if cmd == "hold":
             d.hold(args["key"], int(args["frames"]));  return self._frame_info()
 
-        # mouse
+        # mouse — raw move/down/up apply immediately
         if cmd == "mousemove":
-            d.mouse_move(int(args["x"]), int(args["y"]));  return self._frame_info()
+            d.mouse_move(int(args["x"]), int(args["y"]));  d.apply()
+            return self._frame_info()
         if cmd == "mousedown":
             d.mouse_down(int(args["x"]), int(args["y"]), args.get("button", "left"))
-            return self._frame_info()
+            d.apply();  return self._frame_info()
         if cmd == "mouseup":
             d.mouse_up(int(args["x"]), int(args["y"]), args.get("button", "left"))
-            return self._frame_info()
+            d.apply();  return self._frame_info()
         if cmd == "click":
             d.click(int(args["x"]), int(args["y"]), args.get("button", "left"))
             return self._frame_info()
