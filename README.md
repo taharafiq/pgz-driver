@@ -29,10 +29,10 @@ A Pygame Zero game needs to stay running in one process to keep its state, but a
 Two design choices make it predictable for an agent:
 
 - **Agent-stepped time (fixed `dt`).** The game never advances on its own. It only moves forward when you run `pgz step` (or a convenience like `tap`/`hold`/`click` that steps for you). Each frame advances `1/60s` of game time by default, so runs are fully deterministic and reproducible.
-- **Input is queued, time is separate.** Input commands *queue* a pygame event; `step` *drains* the queue once (firing handlers, updating key/mouse state) and then ticks the game. This is what lets a key stay **held** across many frames:
+- **Input applies immediately; only `step` advances time.** A raw input command (`keydown`, `keyup`, `mousemove`, `mousedown`, `mouseup`) takes effect right away — its handler fires and the frame is refreshed — but it does **not** advance the game clock. A key stays held until you release it, so holding across many frames just works:
 
   ```bash
-  pgz keydown LEFT      # queue the press
+  pgz keydown LEFT      # press registered now (and held)
   pgz step 30           # held for all 30 frames (continuous movement)
   pgz keyup LEFT        # release
   ```
@@ -131,5 +131,14 @@ pgzd/
   client.py     # connect + send one command
   protocol.py   # Unix socket path + newline-JSON framing
   cli.py        # `pgz` argparse entry point
-games/          # sample games (snake, collect-treasure) + shared assets
+games/          # sample games + shared assets
+  snake/            # keyboard, grid-based (on_key_down)
+  collect-treasure/ # held-key movement + countdown timer
+  mouse-test/       # exercises every mouse interaction (move/click/drag/scroll)
 ```
+
+## Sample games
+
+- **`games/snake/snake.py`** — classic Snake; tests discrete `on_key_down` input.
+- **`games/collect-treasure/collect_treasure.py`** — top-down collector; tests *held*-key movement and a real-time countdown.
+- **`games/mouse-test/mouse_test.py`** — a diagnostic game that draws a cursor crosshair, a coloured dot per click (green/red/blue = left/right/middle), a drag trail, and a wheel-driven scroll bar. Every interaction is also exposed as a global (`cursor`, `left_clicks`, `scroll_value`, `drag_path`, …) so it can be checked with `pgz state` — handy for verifying mouse support end-to-end.
